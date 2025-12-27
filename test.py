@@ -11,16 +11,27 @@ from cadrille import Cadrille, collate
 from dataset import Text2CADDataset, CadRecodeDataset
 
 
-def run(data_path, split, mode, checkpoint_path, py_path):
+def run(data_path, split, mode, checkpoint_path, py_path, device='auto'):
     # should be no predicted codes from previous experiments
     os.makedirs(args.py_path, exist_ok=True)
     assert len(os.listdir(py_path)) == 0
 
-    model = Cadrille.from_pretrained(
-        checkpoint_path,
-        torch_dtype=torch.bfloat16,
-        attn_implementation='flash_attention_2',
-        device_map='auto')
+    # Determine device and appropriate dtype
+    if device == 'cpu':
+        # CPU doesn't support bfloat16 well, use float32
+        # Also, flash_attention_2 requires CUDA
+        model = Cadrille.from_pretrained(
+            checkpoint_path,
+            torch_dtype=torch.float32,
+            attn_implementation='eager')
+        model = model.to('cpu')
+    else:
+        # GPU path (original behavior)
+        model = Cadrille.from_pretrained(
+            checkpoint_path,
+            torch_dtype=torch.bfloat16,
+            attn_implementation='flash_attention_2',
+            device_map='auto')
 
     processor = AutoProcessor.from_pretrained(
         'Qwen/Qwen2-VL-2B-Instruct', 
@@ -32,7 +43,7 @@ def run(data_path, split, mode, checkpoint_path, py_path):
         dataset = Text2CADDataset(
             root_dir=os.path.join(data_path, 'text2cad'),
             split='test')
-        batch_size = 32
+        batch_size = 32 if device != 'cpu' else 4
     else:  # mode in ('pc', 'img')
         dataset = CadRecodeDataset(
             root_dir=data_path,
@@ -45,7 +56,7 @@ def run(data_path, split, mode, checkpoint_path, py_path):
             noise_scale_img=-1,
             num_imgs=4,
             mode=mode)
-        batch_size = 256
+        batch_size = 256 if device != 'cpu' else 1
 
     n_samples = 1
     counter = 0
@@ -85,5 +96,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='pc')
     parser.add_argument('--checkpoint-path', type=str, default='maksimko123/cadrille')
     parser.add_argument('--py-path', type=str, default='./work_dirs/tmp_py')
+    parser.add_argument('--device', type=str, default='auto', choices=['auto', 'cpu', 'cuda'],
+                        help='Device to run inference on: auto (GPU if available), cpu, or cuda')
     args = parser.parse_args()
-    run(args.data_path, args.split, args.mode, args.checkpoint_path, args.py_path)
+    run(args.data_path, args.split, args.mode, args.checkpoint_path, args.py_path, args.device)

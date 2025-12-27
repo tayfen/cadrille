@@ -263,7 +263,10 @@ class Cadrille(Qwen2VLForConditionalGeneration):
 
             # add point cloud embeddings, we add only next 6 lines
             if is_pc.sum() > 0 and (past_key_values is None or past_key_values.get_seq_length() == 0):
-                point_embeds = self.point_encoder(point_clouds.float()).bfloat16()
+                #point_embeds = self.point_encoder(point_clouds.float()).bfloat16()
+                # added for cpu
+                point_embeds = self.point_encoder(point_clouds.float()).to(inputs_embeds.dtype)
+
                 start_idxs = attention_mask.shape[1] - attention_mask.sum(axis=1)
                 for i, start_idx in enumerate(start_idxs):
                     if is_pc[i]:

@@ -34,7 +34,8 @@ def run(data_path, split, mode, checkpoint_path, py_path, device='auto'):
             device_map='auto')
 
     processor = AutoProcessor.from_pretrained(
-        'Qwen/Qwen2-VL-2B-Instruct', 
+        'Qwen/Qwen2-VL-2B-Instruct',
+        use_fast=False,
         min_pixels=256 * 28 * 28, 
         max_pixels=1280 * 28 * 28,
         padding_side='left')
